@@ -1,0 +1,258 @@
+/*set echo on*/
+set ECHO on;
+
+/* Drop tables */
+DROP TABLE Online_Account;
+DROP TABLE Coupon;
+DROP TABLE Sold;
+DROP TABLE Products;
+DROP TABLE Transactions;
+DROP TABLE Customer;
+/*drop views*/
+DROP VIEW ViewOnlineAcc;
+DROP VIEW ViewProductRank;
+
+/*Drop indexes*/
+DROP INDEX IDX_Sold_PRODUCT_ID;
+DROP INDEX IDX_Sold_TRANS_ID;
+DROP INDEX IDX_Coupon_CUSTOMER_ID_FK;
+DROP INDEX IDX_Products_PRODUCT_NAME;
+DROP INDEX IDX_Transactions_DATE_CREATED;
+DROP INDEX IDX_Transactions_CUSTOMER_ID_FK;
+DROP INDEX IDX_Online_Account_CUSTOMER_ID_FK;
+DROP INDEX IDX_Customer_Phone_Number;
+
+/* Drop Sequences */
+DROP SEQUENCE SEQ_Customer_CUSTOMER_ID;
+DROP SEQUENCE SEQ_Online_Account_ONLINE_ACC_ID;
+DROP SEQUENCE SEQ_Transactions_TRANS_ID;
+DROP SEQUENCE SEQ_Products_PRODUCT_ID;
+DROP SEQUENCE SEQ_Coupon_COUPON_CODE;
+
+/*drop triggers*/
+DROP TRIGGER TRG_Customer_CUSTOMER_ID;
+DROP TRIGGER TRG_Online_Account;
+DROP TRIGGER TRG_Transactions;
+DROP TRIGGER TRG_Products_PRODUCT_ID;
+DROP TRIGGER TRG_Coupon_COUPON_CODE;
+
+/* create tables based on entities */
+CREATE TABLE Customer (
+    CUSTOMER_ID     VARCHAR(20)     NOT NULL,
+    FIRST_NAME      VARCHAR(20)             , 
+    LAST_NAME       VARCHAR(20)             ,
+    PHONE_NUMBER    VARCHAR(10)    NOT NULL UNIQUE,
+    TOTAL_POINTS    INTEGER                 ,
+    
+    CONSTRAINT PK_Customer PRIMARY KEY (CUSTOMER_ID),
+    CONSTRAINT Check_Phone CHECK (LENGTH(PHONE_NUMBER)= 10)
+);
+
+CREATE TABLE Online_Account (
+    CUSTOMER_ID     VARCHAR(20)     NOT NULL,
+    ONLINE_ACC_ID   VARCHAR(20)     NOT NULL,
+    USER_NAME       VARCHAR(20)     NOT NULL UNIQUE, 
+    PASSWORD       VARCHAR(20)      NOT NULL,
+    EMAIL           VARCHAR(20)     NOT NULL UNIQUE,
+    DATE_JOINED     DATE            NOT NULL,
+    
+    CONSTRAINT PK_Online_Account PRIMARY KEY (ONLINE_ACC_ID),
+    CONSTRAINT FK_Online_Account_CUSTOMER_ID FOREIGN KEY (CUSTOMER_ID) REFERENCES Customer
+);
+
+CREATE TABLE Transactions (
+    TRANS_ID        VARCHAR(20)  NOT NULL,
+    CUSTOMER_ID     VARCHAR(20)  NOT NULL,
+    POINTS_RECEIVED INTEGER      NOT NULL, 
+    ITEM_QUANTITY   INTEGER      NOT NULL,
+    TOTAL_PRICE     NUMBER      NOT NULL,
+    DATE_CREATED    DATE         NOT NULL,
+    
+    CONSTRAINT PK_Transactions PRIMARY KEY (TRANS_ID),
+    CONSTRAINT FK_Transactions_CUSTOMER_ID FOREIGN KEY (CUSTOMER_ID) REFERENCES Customer
+);
+
+CREATE TABLE Products (
+    PRODUCT_ID      VARCHAR(20)      NOT NULL,
+    DESCRIPTION     VARCHAR(200)              , 
+    CATEGORY        VARCHAR(20)      NOT NULL,
+    PRODUCT_NAME    VARCHAR(20)      NOT NULL,
+    CALORIES        INTEGER                  ,
+    
+    CONSTRAINT PK_Products PRIMARY KEY (PRODUCT_ID)
+);
+
+CREATE TABLE Coupon (
+    COUPON_CODE         VARCHAR(10)  NOT NULL,
+    CUSTOMER_ID         VARCHAR(20)  NOT NULL,
+    DATE_REDEEM         DATE         NOT NULL, 
+    DISCOUNT_AMOUNT     INTEGER      NOT NULL,
+    POINTS_USED         INTEGER      NOT NULL,
+    DATE_EXPIRES        DATE         NOT NULL,
+    
+    CONSTRAINT PK_Coupon PRIMARY KEY (COUPON_CODE),
+    CONSTRAINT FK_Coupon_CUSTOMER_ID FOREIGN KEY (CUSTOMER_ID) REFERENCES Customer
+);
+
+CREATE TABLE Sold (
+    PRICE       NUMBER      NOT NULL,
+    PRODUCT_ID  VARCHAR(20)  NOT NULL,    
+    TRANS_ID    VARCHAR(20)  NOT NULL,
+    CONSTRAINT PK_Sold            PRIMARY KEY (PRODUCT_ID,TRANS_ID),
+    CONSTRAINT FK_Sold_PRODUCT_ID FOREIGN KEY (PRODUCT_ID) REFERENCES Products,
+    CONSTRAINT FK_Sold_TRANS_ID   FOREIGN KEY (TRANS_ID)   REFERENCES Transactions
+);
+
+/*Creates indices for natural keys, foreign keys, and frequenctly-queried columns*/
+
+--Online_Accout
+--Foreign Keys
+CREATE INDEX IDX_Online_Account_CUSTOMER_ID_FK ON Online_Account (CUSTOMER_ID);
+
+--Transactions
+--Foreign Keys
+CREATE INDEX IDX_Transactions_CUSTOMER_ID_FK ON Transactions (CUSTOMER_ID);
+--frequently-queried columns
+CREATE INDEX IDX_Transactions_DATE_CREATED ON Transactions (Date_Created);
+
+--Products
+--Natural Keys
+CREATE UNIQUE INDEX IDX_Products_PRODUCT_NAME ON Products (PRODUCT_NAME);
+
+--Coupon
+--Foreign Keys
+CREATE INDEX IDX_Coupon_CUSTOMER_ID_FK ON Coupon (CUSTOMER_ID);
+
+--Sold
+--Foreign keys
+CREATE INDEX IDX_Sold_TRANS_ID ON Sold (Trans_ID);
+CREATE INDEX IDX_Sold_PRODUCT_ID ON Sold (PRODUCT_ID);
+
+/*create sequence for surrogate keys*/
+CREATE SEQUENCE SEQ_Customer_CUSTOMER_ID
+    INCREMENT BY 1
+    START WITH 1
+    NOMAXVALUE
+    MINVALUE 0 
+    NOCACHE;
+
+CREATE SEQUENCE SEQ_Online_Account_ONLINE_ACC_ID
+    INCREMENT BY 1
+    START WITH 1
+    NOMAXVALUE
+    MINVALUE 0 
+    NOCACHE;
+
+CREATE SEQUENCE SEQ_Transactions_TRANS_ID
+    INCREMENT BY 1
+    START WITH 1
+    NOMAXVALUE
+    MINVALUE 0 
+    NOCACHE;
+
+CREATE SEQUENCE SEQ_Products_PRODUCT_ID
+    INCREMENT BY 1
+    START WITH 1
+    NOMAXVALUE
+    MINVALUE 0 
+    NOCACHE;
+
+CREATE SEQUENCE SEQ_Coupon_COUPON_CODE
+    INCREMENT BY 1
+    START WITH 1
+    NOMAXVALUE
+    MINVALUE 0 
+    NOCACHE;
+
+/*Create Trigger*/
+--Business purpose: TRG_Customer_CUSTOMER_ID automatically assigns a sequential CUSTOMER_ID in Customer table
+CREATE OR REPLACE TRIGGER TRG_Customer_CUSTOMER_ID
+    BEFORE INSERT ON Customer
+    FOR EACH ROW
+    BEGIN
+        IF INSERTING THEN
+            IF :NEW.CUSTOMER_ID IS NULL THEN
+                :NEW.CUSTOMER_ID := 'CUST' || '-' || SEQ_Customer_CUSTOMER_ID.NEXTVAL;
+            END IF;
+        END IF;
+END;
+/
+--Business purpose: TRG_Online_Account automatically assigns a sequential ONLINE_ACC_ID in Online_Account and add created date. 
+CREATE OR REPLACE TRIGGER TRG_Online_Account
+    BEFORE INSERT ON Online_Account
+    FOR EACH ROW
+    BEGIN
+        IF INSERTING THEN
+            IF :NEW.ONLINE_ACC_ID IS NULL THEN
+                :NEW.ONLINE_ACC_ID := 'ONLINE' || '-' || SEQ_Online_Account_ONLINE_ACC_ID.NEXTVAL;
+            END IF;
+            IF :NEW.DATE_JOINED IS NULL THEN
+                :NEW.DATE_JOINED := SYSDATE;
+            END IF;
+        END IF;
+END;
+/
+--Business purpose: TRG_Transactions automatically assigns a sequential TRANS_ID in Transactions and add date transaction happened
+CREATE OR REPLACE TRIGGER TRG_Transactions
+    BEFORE INSERT ON Transactions
+    FOR EACH ROW
+    BEGIN
+        IF INSERTING THEN
+            IF :NEW.TRANS_ID IS NULL THEN
+                :NEW.TRANS_ID := 'Trans' || '-' || SEQ_Transactions_TRANS_ID.NEXTVAL;
+            END IF;
+            IF :NEW.DATE_CREATED IS NULL THEN
+                :NEW.DATE_CREATED := SYSDATE;
+            END IF;
+        END IF;
+END;
+/
+--Business purpose: TRG_Products_PRODUCT_ID automatically assigns a sequential PRODUCT_ID in Products
+CREATE OR REPLACE TRIGGER TRG_Products_PRODUCT_ID
+    BEFORE INSERT ON Products
+    FOR EACH ROW
+    BEGIN
+        IF INSERTING THEN
+            IF :NEW.PRODUCT_ID IS NULL THEN
+                :NEW.PRODUCT_ID := 'PROD' || '-' || SEQ_Products_PRODUCT_ID.NEXTVAL;
+            END IF;
+        END IF;
+END;
+/
+--Business purpose: TRG_Coupon_COUPON_CODE automatically assigns a sequential COUPON_CODE in Coupon
+CREATE OR REPLACE TRIGGER TRG_Coupon_COUPON_CODE
+    BEFORE INSERT ON Coupon
+    FOR EACH ROW
+    BEGIN
+        IF INSERTING THEN
+            IF :NEW.COUPON_CODE IS NULL THEN
+                :NEW.COUPON_CODE := 'Coup' || '-' || SEQ_Coupon_COUPON_CODE.NEXTVAL;
+            END IF;
+        END IF;
+END;
+/
+
+
+/* Create Views*/
+--Business Purpose: The ViewOnlineAcc will be used to view lists of online accounts without showing the password.
+CREATE OR REPLACE VIEW ViewOnlineAcc AS
+SELECT ONLINE_ACC_ID, USER_NAME, EMAIL, DATE_JOINED
+FROM Online_Account
+;
+--Business Purpose: The ViewProductRank will be used to see which product has sold within a week.
+CREATE OR REPLACE VIEW ViewProductRank AS
+SELECT Products.PRODUCT_NAME, Products.PRODUCT_ID
+FROM Products
+JOIN Sold
+ON Products.PRODUCT_ID = Sold.PRODUCT_ID
+JOIN Transactions
+ON Transactions.trans_id= Sold.trans_id
+WHERE transactions.date_created > 'CURDATE() - INTERVAL 7 day'
+;
+
+--Check the DBMS data dictionary to make sure that all objects have been created successfully
+SELECT TABLE_NAME FROM USER_TABLES;
+SELECT OBJECT_NAME, STATUS, CREATED, LAST_DDL_TIME FROM USER_OBJECTS;
+
+/*rollback*/
+ROLLBACK;
